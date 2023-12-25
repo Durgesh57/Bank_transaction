@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="OpenAccountFlow" doc:id="c59b387d-ebcd-4378-a6be-e89d7d00ebca" >
+		<db:select doc:name="retrieve highest account number" doc:id="086a882b-bf5e-4efa-9819-4d3c796d3298" config-ref="Database_Config" target="custAccNum" targetValue="#[payload[0].custAccNum]">
+			<db:sql ><![CDATA[SELECT MAX(custAccNum) AS custAccNum FROM BANK_TRANSACTIONS]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="519b0db0-3829-43d8-b2ed-d75e2f13c2a1" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="custAccNum" ><![CDATA[%dw 2.0
+output application/json
+---
+vars.custAccNum default 1901000000 + 1]]></ee:set-variable>
+				<ee:set-variable variableName="type" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.queryParams.'type']]></ee:set-variable>
+				<ee:set-variable variableName="bank" ><![CDATA[%dw 2.0
+output application/java
+---
+attributes.queryParams.bank]]></ee:set-variable>
+				<ee:set-variable variableName="customerName" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.queryParams.customerName]]></ee:set-variable>
+				<ee:set-variable variableName="branch" ><![CDATA[%dw 2.0
+output application/java
+---
+attributes.queryParams.branchName]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="b7498d31-92c7-468c-855c-60886926887f" message="#[vars.custAccNum]"/>
+		<db:insert doc:name="createAccount" doc:id="4523538a-3d35-4f24-a475-d6785d09d095" config-ref="Database_Config">
+			<db:sql ><![CDATA[Insert into BANK_TRANSACTIONS(custName, custAccNum, atmPin, bankName, accountType, ifscCode, branchName, totalBalance, transactionTimeStamp, accountStatus, wrongPin, mailId, phoneNumber) values (:custName, :custAccNum, :atmPin, :bankName, :accountType, :ifscCode, :branchName, :totalBalance, :transactionTimeStamp, :accountStatus, :wrongPin, :mailId, :phoneNumber);]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	custName : vars.customerName,
+	custAccNum : vars.custAccNum,
+	atmPin : payload.atmPin,
+	bankName: vars.bank,
+	accountType: vars.'type',
+	ifscCode: payload.ifscCode,
+	branchName: vars.branch,
+	totalBalance: payload.depositeAmount default 0,
+	transactionTimeStamp : now() as String,
+	accountStatus: "Active",
+	wrongPin: 0,
+	mailId: payload.mailId,
+	phoneNumber: payload.contact
+}]]]></db:input-parameters>
+		</db:insert>
+		<logger level="INFO" doc:name="Logger" doc:id="3555468c-67d2-4e49-9ce4-b83f02ee8202" message="#[payload]"/>
+	</flow>
+</mule>
