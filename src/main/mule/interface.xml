@@ -147,7 +147,25 @@ output application/json
         </ee:transform>
     </flow>
     <flow name="post:\checkBalance:application\json:bank-transactions-config">
-        <flow-ref doc:name="validate-info" doc:id="ce2a48e5-4a60-4a85-bc14-4e8ee4734893" name="validate-info"/>
+        <ee:transform doc:name="queryParams" doc:id="df13dc5c-fae1-4e50-93b3-d57a6168ee51" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="bank" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.queryParams.bank]]></ee:set-variable>
+				<ee:set-variable variableName="type" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.queryParams."type"]]></ee:set-variable>
+				<ee:set-variable variableName="accountNumber" ><![CDATA[%dw 2.0
+output application/json
+---
+payload.accountNum]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="validate-info" doc:id="ce2a48e5-4a60-4a85-bc14-4e8ee4734893" name="validate-info"/>
     </flow>
     <flow name="post:\createAccount:application\json:bank-transactions-config">
         <flow-ref doc:name="OpenAccountFlow" doc:id="760c358e-e022-45f7-ba6d-fb74d6db0991" name="OpenAccountFlow"/>

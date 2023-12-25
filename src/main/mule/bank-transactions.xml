@@ -40,36 +40,47 @@ payload[0].totalBalance]]></ee:set-variable>
 output application/java
 ---
 if (vars.check == "checkBalance")
-vars.check
-else if (vars.atmPin == payload.atmPin)
+ if (vars.atmPin == payload.atmPin)
 vars.check
 else
-"wrongPin"]]></ee:set-variable>
+"wrongPin"
+else
+"Blocked account"]]></ee:set-variable>
 					</ee:variables>
 		</ee:transform>
 				<flow-ref doc:name="vars.check" doc:id="79ff8bb3-ffaf-4a07-b90d-e092b27064ea" name="#[vars.check]"/>
 			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="69e39a14-f1bc-44ae-880c-8fe80b6517d6" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+"Invalid account number"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
 		</choice>
 		<logger level="INFO" doc:name="Logger" doc:id="8cc815ab-ce0c-44d8-84b7-5377cf85038d" />
 	</flow>
 	<flow name="wrongPin" doc:id="e2b47dee-1ca7-4ab1-854c-03179e1a18f3" >
 		<choice doc:name="Choice" doc:id="16220a9d-e1fe-467b-9a31-dbbea3254871">
-			<when expression="#[payload.wrongPin == 3]">
+			<when expression="#[payload[0].wrongPin == 3]">
 				<db:update doc:name="Update" doc:id="5719274c-1675-4f05-9a54-55d92de6ba09" config-ref="Database_Config">
 					<db:sql ><![CDATA[UPDATE BANK_TRANSACTIONS SET accountStatus = "Blocked" where custAccNum = :account;]]></db:sql>
 					<db:input-parameters ><![CDATA[#[account : vars.accountNumber]]]></db:input-parameters>
 				</db:update>
-				<raise-error doc:name="Raise error" doc:id="2953563d-71cb-4dc8-b883-26fbc8b868a8" type="Account_Blocked" description="Maximum attempts reached. Your account is temporarily blocked. Please visit your nearest branch" />
+				<raise-error doc:name="Raise error" doc:id="2953563d-71cb-4dc8-b883-26fbc8b868a8" type="MULE:VALIDATION" description="Maximum attempts reached. Your account is temporarily blocked. Please visit your nearest branch" />
 			</when>
-			<when expression="#[payload.wrongPin &lt;= 2]">
+			<when expression="#[payload[0].wrongPin &lt;= 2]">
 				<db:update doc:name="Update wrongPin" doc:id="9ca657bc-372b-479e-88d6-22e9db0e9ee8" config-ref="Database_Config">
 					<db:sql ><![CDATA[UPDATE BANK_TRANSACTIONS SET wrongPin = :pin where custAccNum = :account;]]></db:sql>
 					<db:input-parameters ><![CDATA[#[{
-	pin : payload.wrongPin + 1,
+	pin : payload[0].wrongPin + 1,
 	account : vars.accountNumber
 }]]]></db:input-parameters>
 				</db:update>
-				<raise-error doc:name="Raise error" doc:id="8b414e95-286e-42ca-b073-1d14b2ff6303" type="Wrong_Pin" description="Login attempt failed due to wrong pin"/>
+				<raise-error doc:name="Raise error" doc:id="8b414e95-286e-42ca-b073-1d14b2ff6303" type="MULE:VALIDATION" description="Login attempt failed due to wrong pin"/>
 			</when>
 			<otherwise >
 				<logger level="INFO" doc:name="Logger" doc:id="d538e0dc-0fba-4c74-a002-09a6cc40412e" message='#["wrong pin logger"]'/>
@@ -93,9 +104,9 @@ output application/json
 		</error-handler>
 	</flow>
 	<flow name="raiseError" doc:id="5fd9119d-dad8-4156-a9a4-36547e87c0ec" >
-		<raise-error doc:name="Raise error" doc:id="9b968a07-1297-489e-9452-98e1b918fa02" type="VALIDATION_ERROR" description="#[payload]"/>
+		<raise-error doc:name="Raise error" doc:id="9b968a07-1297-489e-9452-98e1b918fa02" type="MULE:VALIDATION" description="#[payload]"/>
 		<error-handler >
-			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="ea0368e3-183a-4e7e-b6b3-cce053af6c28" >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="ea0368e3-183a-4e7e-b6b3-cce053af6c28" type="MULE:VALIDATION">
 				<ee:transform doc:name="Transform Message" doc:id="1b51d70b-5ff3-4325-9db1-796516ae0690" >
 					<ee:message >
 						<ee:set-payload ><![CDATA[%dw 2.0
