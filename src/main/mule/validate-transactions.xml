@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="validate-info" doc:id="104d5b6d-4105-4bdf-a99c-87a5141efc04" >
+		<db:select doc:name="Select" doc:id="3ba56f12-23da-4ce0-b47d-17afc5d540c3" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT * FROM BANK_TRANSACTIONS where custAccNum = :account and bankName = :bank]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	account : vars.accountNumber,
+	bank: vars.bank
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="625bf6b8-93c3-4576-81f5-e71a42f979eb" >
+			<when expression="#[sizeOf(payload) &gt; 0]">
+				<ee:transform doc:name="Transform Message" doc:id="0feed156-4c6c-4244-94c1-4b3915170b82">
+					<ee:message>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="check" ><![CDATA[%dw 2.0
+output application/java
+---
+if (isEmpty(vars.user) and payload[0].accountStatus == "Active")
+	if (payload[0].accountStatus == "Active")
+"checkBalance"
+else
+Mule::lookup('raiseError', "Account temporarily blocked, please visit nearest branch")
+else
+Mule::lookup('raiseError', "Account is already Active")
+]]></ee:set-variable>
+						<ee:set-variable variableName="balance" ><![CDATA[%dw 2.0
+output application/json
+---
+payload[0].totalBalance]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<ee:transform doc:name="Transform Message" doc:id="542394ef-9d8c-4f9d-90bc-12fcf4000af1">
+			<ee:message>
+			</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="check" ><![CDATA[%dw 2.0
+output application/json
+---
+if (isEmpty(vars.user))
+ if (vars.atmPin == payload.atmPin)
+vars.check
+else
+"wrongPin"
+else
+vars.check]]></ee:set-variable>
+					</ee:variables>
+		</ee:transform>
+				<flow-ref doc:name="vars.check" doc:id="79ff8bb3-ffaf-4a07-b90d-e092b27064ea" name="#[vars.check]"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="69e39a14-f1bc-44ae-880c-8fe80b6517d6" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+"Invalid account number"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="Logger" doc:id="8cc815ab-ce0c-44d8-84b7-5377cf85038d" />
+	</flow>
+	<flow name="wrongPin" doc:id="e2b47dee-1ca7-4ab1-854c-03179e1a18f3" >
+		<choice doc:name="Choice" doc:id="16220a9d-e1fe-467b-9a31-dbbea3254871">
+			<when expression="#[payload[0].wrongPin == 3]">
+				<db:update doc:name="Update" doc:id="5719274c-1675-4f05-9a54-55d92de6ba09" config-ref="Database_Config">
+					<db:sql ><![CDATA[UPDATE BANK_TRANSACTIONS SET accountStatus = "Blocked" where custAccNum = :account;]]></db:sql>
+					<db:input-parameters ><![CDATA[#[account : vars.accountNumber]]]></db:input-parameters>
+				</db:update>
+				<raise-error doc:name="Raise error" doc:id="2953563d-71cb-4dc8-b883-26fbc8b868a8" type="MULE:VALIDATION" description="Maximum attempts reached. Your account is temporarily blocked. Please visit your nearest branch" />
+			</when>
+			<when expression="#[payload[0].wrongPin &lt;= 2]">
+				<db:update doc:name="Update wrongPin" doc:id="9ca657bc-372b-479e-88d6-22e9db0e9ee8" config-ref="Database_Config">
+					<db:sql ><![CDATA[UPDATE BANK_TRANSACTIONS SET wrongPin = :pin where custAccNum = :account;]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	pin : payload[0].wrongPin + 1,
+	account : vars.accountNumber
+}]]]></db:input-parameters>
+				</db:update>
+				<raise-error doc:name="Raise error" doc:id="8b414e95-286e-42ca-b073-1d14b2ff6303" type="MULE:VALIDATION" description="Login attempt failed due to wrong pin"/>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="d538e0dc-0fba-4c74-a002-09a6cc40412e" message='#["wrong pin logger"]'/>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="4af6e7cc-3ff1-4c10-8421-0e2d02b9ece1" >
+				<ee:transform doc:name="Transform Message" doc:id="735afca3-cb83-4af5-9493-593931b1b073" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	result : false,
+	status : error.errorType,
+	message : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<flow name="raiseError" doc:id="5fd9119d-dad8-4156-a9a4-36547e87c0ec" >
+		<raise-error doc:name="Raise error" doc:id="9b968a07-1297-489e-9452-98e1b918fa02" type="MULE:VALIDATION" description="#[payload]"/>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="ea0368e3-183a-4e7e-b6b3-cce053af6c28" type="MULE:VALIDATION">
+				<ee:transform doc:name="Transform Message" doc:id="1b51d70b-5ff3-4325-9db1-796516ae0690" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	result : false,
+	status : error.errorType,
+	message : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<sub-flow name="checkBalance" doc:id="3fddd547-38d1-4797-94e1-4fd2e2db2884" >
+		<ee:transform doc:name="Transform Message" doc:id="346bdc8b-d282-4e58-bb19-8149e3ffec98" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	result : true,
+	"Total balance" : vars.balance
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+</mule>

@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_eef77193_ae5c_4313_a7b3_bbd687a3c4b0_Output_Variables_type = "current" | "savings"
+

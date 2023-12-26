@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="OpenAccountFlow" doc:id="c59b387d-ebcd-4378-a6be-e89d7d00ebca" >
+		<db:select doc:name="retrieve highest account number" doc:id="086a882b-bf5e-4efa-9819-4d3c796d3298" config-ref="Database_Config" target="custAccNum" targetValue="#[payload[0].custAccNum]">
+			<db:sql ><![CDATA[SELECT MAX(custAccNum) AS custAccNum FROM BANK_TRANSACTIONS]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="519b0db0-3829-43d8-b2ed-d75e2f13c2a1" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="custAccNum" ><![CDATA[%dw 2.0
+output application/json
+---
+vars.custAccNum default 1901000000 + 1]]></ee:set-variable>
+				<ee:set-variable variableName="type" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.queryParams.'type']]></ee:set-variable>
+				<ee:set-variable variableName="bank" ><![CDATA[%dw 2.0
+output application/java
+---
+attributes.queryParams.bank]]></ee:set-variable>
+				<ee:set-variable variableName="customerName" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.queryParams.customerName]]></ee:set-variable>
+				<ee:set-variable variableName="branch" ><![CDATA[%dw 2.0
+output application/java
+---
+attributes.queryParams.branchName]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="b7498d31-92c7-468c-855c-60886926887f" message="#[vars.custAccNum]"/>
+		<db:insert doc:name="createAccount" doc:id="4523538a-3d35-4f24-a475-d6785d09d095" config-ref="Database_Config">
+			<db:sql ><![CDATA[Insert into BANK_TRANSACTIONS(custName, custAccNum, atmPin, bankName, accountType, ifscCode, branchName, totalBalance, transactionTimeStamp, accountStatus, wrongPin, mailId, phoneNumber) values (:custName, :custAccNum, :atmPin, :bankName, :accountType, :ifscCode, :branchName, :totalBalance, :transactionTimeStamp, :accountStatus, :wrongPin, :mailId, :phoneNumber);]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	custName : vars.customerName,
+	custAccNum : vars.custAccNum,
+	atmPin : payload.atmPin,
+	bankName: vars.bank,
+	accountType: vars.'type',
+	ifscCode: payload.ifscCode,
+	branchName: vars.branch,
+	totalBalance: payload.depositeAmount default 0,
+	transactionTimeStamp : now() as String,
+	accountStatus: "Active",
+	wrongPin: 0,
+	mailId: payload.mailId,
+	phoneNumber: payload.contact
+}]]]></db:input-parameters>
+		</db:insert>
+		<logger level="INFO" doc:name="Logger" doc:id="3555468c-67d2-4e49-9ce4-b83f02ee8202" message="#[payload]"/>
+	</flow>
+	<flow name="withdrawAmount" doc:id="eef77193-ae5c-4313-a7b3-bbd687a3c4b0" >
+		<choice doc:name="Choice" doc:id="17d1f219-7e25-4c81-8fcb-5c34467ce1ca" >
+			<when expression="#[vars.balance &gt;= vars.withdrawAmount]">
+				<set-variable value="#[vars.balance as Number - vars.withdrawAmount as Number]" doc:name="remaining amount" doc:id="5cdb95d8-5aef-45a7-808e-f28f7f451a60" variableName="remaining"/>
+				<db:update doc:name="Update remaining amount" doc:id="06b1029c-08f0-49b3-8c78-ddc98aeea1f7" config-ref="Database_Config">
+					<db:sql ><![CDATA[UPDATE BANK_TRANSACTIONS SET totalBalance = :amount where custAccNum = :account;]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	amount : vars.remaining as Number,
+	account : vars.accountNumber
+}]]]></db:input-parameters>
+				</db:update>
+			</when>
+			<otherwise >
+				<set-variable value="#[400]" doc:name="Set Variable" doc:id="ea7770ce-752c-4e18-967c-b3c0b010086c" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="0b075297-695c-4845-a88f-feeabff39d8a" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	result : false,
+	message : "Insufficient funds"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="unblockAccount" doc:id="cc7fdd3d-22c0-4550-a760-bd83b8ff2ac6" >
+		<db:update doc:name="unblock" doc:id="46e09e16-54f1-484c-8335-69d12086e52a" config-ref="Database_Config">
+			<db:sql ><![CDATA[UPDATE BANK_TRANSACTION SET wrongPin = 0 and accountStatus = "Active";]]></db:sql>
+		</db:update>
+		<ee:transform doc:name="Transform Message" doc:id="7626508b-8d45-45c1-aed7-7b47ef25c3fc" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+"Account is unblocked"]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>

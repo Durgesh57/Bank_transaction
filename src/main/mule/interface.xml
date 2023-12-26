@@ -184,13 +184,31 @@ output application/json
     <flow name="post:\withDraw:application\json:bank-transactions-config">
         <ee:transform doc:name="Transform Message">
             <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
+            </ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="type" ><![CDATA[%dw 2.0
 output application/json
 ---
-{
-  status: "Amount **** is debited. Your total account balance is ****"
-} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
-            </ee:message>
+attributes.queryParams.'type']]></ee:set-variable>
+				<ee:set-variable variableName="bank" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.queryParams.bank]]></ee:set-variable>
+				<ee:set-variable variableName="accountNumber" ><![CDATA[%dw 2.0
+output application/json
+---
+payload.accountNum]]></ee:set-variable>
+				<ee:set-variable variableName="atmPin" ><![CDATA[%dw 2.0
+output application/json
+---
+payload.atmPin]]></ee:set-variable>
+				<ee:set-variable variableName="withdrawAmount" ><![CDATA[%dw 2.0
+output application/json
+---
+payload.amountToBeWithdraw]]></ee:set-variable>
+			</ee:variables>
         </ee:transform>
+		<flow-ref doc:name="validate-info" doc:id="5c87c6f8-4ee0-4853-8b84-8e8a17941f95" name="validate-info"/>
+		<flow-ref doc:name="withdrawAmount" doc:id="fdb3809b-2e62-4d14-9438-abf647ac91e7" name="withdrawAmount"/>
     </flow>
 </mule>
