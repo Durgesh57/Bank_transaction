@@ -86,7 +86,7 @@ output application/json
 	</flow>
 	<flow name="unblockAccount" doc:id="cc7fdd3d-22c0-4550-a760-bd83b8ff2ac6" >
 		<db:update doc:name="unblock" doc:id="46e09e16-54f1-484c-8335-69d12086e52a" config-ref="Database_Config">
-			<db:sql ><![CDATA[UPDATE BANK_TRANSACTION SET wrongPin = 0 and accountStatus = "Active";]]></db:sql>
+			<db:sql ><![CDATA[UPDATE BANK_TRANSACTIONS SET wrongPin = 0 and accountStatus = "Active";]]></db:sql>
 		</db:update>
 		<ee:transform doc:name="Transform Message" doc:id="7626508b-8d45-45c1-aed7-7b47ef25c3fc" >
 			<ee:message >

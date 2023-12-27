@@ -137,14 +137,28 @@ output application/json
     <flow name="put:\unblock:application\json:bank-transactions-config">
         <ee:transform doc:name="Transform Message">
             <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
+            </ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="accountNumber" ><![CDATA[%dw 2.0
+output application/java
+---
+payload.accountNum]]></ee:set-variable>
+				<ee:set-variable variableName="user" ><![CDATA[%dw 2.0
 output application/json
 ---
-{
-  status: "Account **** is unblocked"
-} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
-            </ee:message>
+payload.user]]></ee:set-variable>
+				<ee:set-variable variableName="bank" ><![CDATA[%dw 2.0
+output application/json
+---
+payload.bank]]></ee:set-variable>
+				<ee:set-variable variableName="password" ><![CDATA[%dw 2.0
+output application/json
+---
+payload.password]]></ee:set-variable>
+			</ee:variables>
         </ee:transform>
+		<flow-ref doc:name="validate-info" doc:id="6eb0a913-2d14-437c-ba23-8315c634a472" name="validate-info"/>
+		<flow-ref doc:name="unblockAccount" doc:id="31c9acf4-cbfa-4847-9918-a35caa7e467b" name="unblockAccount"/>
     </flow>
     <flow name="post:\checkBalance:application\json:bank-transactions-config">
         <ee:transform doc:name="queryParams" doc:id="df13dc5c-fae1-4e50-93b3-d57a6168ee51" >

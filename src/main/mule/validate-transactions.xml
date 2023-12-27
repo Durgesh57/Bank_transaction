@@ -14,45 +14,50 @@ http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/
 }]]]></db:input-parameters>
 		</db:select>
 		<choice doc:name="Choice" doc:id="625bf6b8-93c3-4576-81f5-e71a42f979eb" >
-			<when expression="#[sizeOf(payload) &gt; 0]">
-				<ee:transform doc:name="Transform Message" doc:id="0feed156-4c6c-4244-94c1-4b3915170b82">
-					<ee:message>
-					</ee:message>
-					<ee:variables >
-						<ee:set-variable variableName="check" ><![CDATA[%dw 2.0
-output application/java
----
-if (isEmpty(vars.user) and payload[0].accountStatus == "Active")
-	if (payload[0].accountStatus == "Active")
-"checkBalance"
-else
-Mule::lookup('raiseError', "Account temporarily blocked, please visit nearest branch")
-else
-Mule::lookup('raiseError', "Account is already Active")
-]]></ee:set-variable>
-						<ee:set-variable variableName="balance" ><![CDATA[%dw 2.0
+			<when expression="#[sizeOf(payload) &gt; 0 and vars.atmPin == payload[0].atmPin]">
+				<choice doc:name="Choice" doc:id="5dd5a473-c584-444d-b97c-f2455e8dd09e">
+					<when expression='#[!isEmpty(vars.user)]'>
+						<choice doc:name="Choice" doc:id="605e6d8b-4010-4747-ba8e-2130cb1105be">
+							<when expression='#[payload[0].accountStatus == "Active"]' >
+								<set-payload value='#["Account is already active"]' doc:name="Set Payload" doc:id="0a5a5a01-ebc1-4b0b-b590-4629217acc7c" />
+							</when>
+							<otherwise >
+								<flow-ref doc:name="unblockAccount" doc:id="bb4435ff-20c9-4548-be49-e84dc37b5577" name="unblockAccount" />
+							</otherwise>
+						</choice>
+					</when>
+					<when expression='#[!isEmpty(vars.withdrawAmount) and payload[0].accountStatus == "Active"]'>
+						<ee:transform doc:name="Transform Message" doc:id="7365c498-1017-4754-bb59-c08949c557dd">
+							<ee:message>
+							</ee:message>
+							<ee:variables >
+								<ee:set-variable variableName="balance" ><![CDATA[%dw 2.0
 output application/json
 ---
 payload[0].totalBalance]]></ee:set-variable>
-					</ee:variables>
-				</ee:transform>
-				<ee:transform doc:name="Transform Message" doc:id="542394ef-9d8c-4f9d-90bc-12fcf4000af1">
-			<ee:message>
-			</ee:message>
-					<ee:variables >
-						<ee:set-variable variableName="check" ><![CDATA[%dw 2.0
+							</ee:variables>
+						</ee:transform>
+						<flow-ref doc:name="withdrawAmount" doc:id="fd7102a5-b1d4-4d60-a870-5c1afacbfffa" name="withdrawAmount"/>
+					</when>
+					<otherwise>
+						<ee:transform doc:name="Transform Message" doc:id="99ded8c2-a29c-41f9-990b-4492d0b2b245" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 ---
-if (isEmpty(vars.user))
- if (vars.atmPin == payload.atmPin)
-vars.check
-else
-"wrongPin"
-else
-vars.check]]></ee:set-variable>
-					</ee:variables>
-		</ee:transform>
-				<flow-ref doc:name="vars.check" doc:id="79ff8bb3-ffaf-4a07-b90d-e092b27064ea" name="#[vars.check]"/>
+{
+	result : true,
+	"Total balance" : payload[0].totalBalance
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+			</when>
+			<when expression="#[vars.atmPin != payload[0].atmPin]">
+				<flow-ref doc:name="wrongPin" doc:id="dc08b1c7-f569-47e5-aa29-4d71aa4df1b2" name="wrongPin"/>
+				<set-payload value='#["Incorrect pin"]' doc:name="Set Payload" doc:id="2fcf4c4a-39ed-4289-b615-238358e4fc0d" />
+				<flow-ref doc:name="raiseError" doc:id="81e1dadb-9d23-4f3e-a563-f8635d4ad72f" name="raiseError"/>
 			</when>
 			<otherwise >
 				<ee:transform doc:name="Transform Message" doc:id="69e39a14-f1bc-44ae-880c-8fe80b6517d6" >
@@ -126,17 +131,4 @@ output application/json
 			</on-error-propagate>
 		</error-handler>
 	</flow>
-	<sub-flow name="checkBalance" doc:id="3fddd547-38d1-4797-94e1-4fd2e2db2884" >
-		<ee:transform doc:name="Transform Message" doc:id="346bdc8b-d282-4e58-bb19-8149e3ffec98" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-	result : true,
-	"Total balance" : vars.balance
-}]]></ee:set-payload>
-			</ee:message>
-		</ee:transform>
-	</sub-flow>
 </mule>
